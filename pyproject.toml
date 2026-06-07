@@ -29,3 +29,6 @@ ftqw = "ftqw.cli.main:cli"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ftqw"]
+
+[tool.hatch.build.targets.editable]
+packages = ["src/ftqw"]
