@@ -4,19 +4,28 @@ Dataset loaders for AMI Meeting Corpus and MeetingBank.
 Returns a normalized list[Meeting] regardless of source. Both benchmark scripts
 and the fine-tuning pipeline import from here.
 
-HuggingFace dataset IDs:
-  AMI summaries:   TalTechNLP/AMIsum          field: id, transcript, summary
-  AMI utterances:  edinburghcstr/ami           configs: ihm / sdm, field: meeting_id, text
-  MeetingBank:     huuuyeah/MeetingBank        field: meeting_id, transcript, summary
+Data sources:
+  AMI:         https://cs.taltech.ee/staff/heharm/AMIsum/  (train/val/test .json)
+               Fields: id, transcript (manual IHM quality), summary
+  MeetingBank: huuuyeah/MeetingBank (HF)
+               Fields: meeting_id, transcript (ASR), summary
+
+Note: edinburghcstr/ami is intentionally not used — it bundles 16kHz audio parquet
+files making downloads multi-GB. AMIsum already contains high-quality IHM transcripts.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
+import urllib.request
 from dataclasses import dataclass
 from typing import Optional
 
 from datasets import load_dataset
+
+_AMISUM_BASE = "https://cs.taltech.ee/staff/heharm/AMIsum/"
+_AMISUM_SPLIT_FILE = {"train": "train.json", "validation": "val.json", "test": "test.json"}
 
 # Benchmark fraction — meetings whose SHA-256 bucket falls below this threshold
 # are held out for benchmarking; the rest go to fine-tuning.
@@ -37,45 +46,32 @@ class Meeting:
 # AMI Meeting Corpus
 # ---------------------------------------------------------------------------
 
+def _fetch_amisum(split: str) -> dict:
+    """Download one AMIsum JSON split from the TalTech server."""
+    filename = _AMISUM_SPLIT_FILE[split]
+    with urllib.request.urlopen(_AMISUM_BASE + filename, timeout=30) as r:
+        return json.load(r)
+
+
 def load_ami(split: str = "test") -> list[Meeting]:
     """
-    Load AMI Meeting Corpus.
+    Load AMI Meeting Corpus via the TalTech AMIsum server.
 
-    TalTechNLP/AMIsum provides meeting-level summaries and the official split.
-    edinburghcstr/ami IHM/SDM configs provide utterance-level transcripts that
-    are aggregated per meeting_id to reconstruct full-session text.
-
-    IHM (individual headset mic) = cleaner near-manual transcripts → transcript_manual.
-    SDM (single distant mic)     = noisier ASR-like transcripts    → transcript_asr.
-    Falls back to the AMIsum transcript field if the config is unavailable.
+    The AMIsum transcript is manual (IHM quality). Both transcript_asr and
+    transcript_manual are set to the same value — the IHM/SDM distinction
+    can be added later without touching callers.
     """
-    ami_sum = load_dataset("TalTechNLP/AMIsum", split=split)
-
-    ihm_by_id: dict[str, list[str]] = {}
-    sdm_by_id: dict[str, list[str]] = {}
-    try:
-        for row in load_dataset("edinburghcstr/ami", "ihm", split=split):
-            ihm_by_id.setdefault(row["meeting_id"], []).append(row["text"])
-        for row in load_dataset("edinburghcstr/ami", "sdm", split=split):
-            sdm_by_id.setdefault(row["meeting_id"], []).append(row["text"])
-    except Exception:
-        pass
-
-    ihm_text = {mid: " ".join(utts) for mid, utts in ihm_by_id.items()}
-    sdm_text = {mid: " ".join(utts) for mid, utts in sdm_by_id.items()}
-
+    raw = _fetch_amisum(split)
     meetings: list[Meeting] = []
-    for row in ami_sum:
-        mid = row["id"]
-        fallback = row["transcript"]
+    for mid, tx, sm in zip(raw["id"], raw["transcript"], raw["summary"]):
         meetings.append(
             Meeting(
                 id=mid,
                 source="ami",
                 split=split,
-                transcript_asr=sdm_text.get(mid, fallback),
-                transcript_manual=ihm_text.get(mid, fallback),
-                summary=row["summary"],
+                transcript_asr=tx,
+                transcript_manual=tx,
+                summary=sm,
             )
         )
     return meetings
