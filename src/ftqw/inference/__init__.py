@@ -1,5 +1,7 @@
 from ftqw.inference.model import (
-    load_for_inference,
+    DEFAULT_MODEL_ID,
+    load_base_model,
+    load_finetuned_model,
     load_for_training,
     generate_summary,
     load_gguf_for_inference,
@@ -8,7 +10,9 @@ from ftqw.inference.model import (
 from ftqw.inference.prompt import SYSTEM_PROMPT, format_chat, format_sft_example
 
 __all__ = [
-    "load_for_inference",
+    "DEFAULT_MODEL_ID",
+    "load_base_model",
+    "load_finetuned_model",
     "load_for_training",
     "generate_summary",
     "load_gguf_for_inference",
