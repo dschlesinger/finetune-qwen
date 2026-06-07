@@ -13,6 +13,9 @@ rouge-score>=0.1.2
 bert-score>=0.3.13
 ./vendor/AlignScore
 
+# GGUF inference
+llama-cpp-python>=0.3
+
 # Utilities
 trl>=0.8
 tqdm

@@ -17,6 +17,7 @@ dependencies = [
     "rouge-score>=0.1.2",
     "bert-score>=0.3.13",
     "trl>=0.8",
+    "llama-cpp-python>=0.3",
     "click>=8.1",
     "tqdm",
     "numpy",

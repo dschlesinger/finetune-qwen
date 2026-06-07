@@ -84,3 +84,41 @@ def generate_summary(model, tokenizer, transcript: str, max_new_tokens: int = 25
         output_ids = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
     new_tokens = output_ids[0][inputs["input_ids"].shape[1]:]
     return tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+
+
+# ---------------------------------------------------------------------------
+# GGUF backend (llama-cpp-python)
+# ---------------------------------------------------------------------------
+
+def load_gguf_for_inference(
+    model_path: str | pathlib.Path,
+    n_gpu_layers: int = -1,
+    n_ctx: int = 8192,
+):
+    """
+    Load a GGUF model via llama-cpp-python. Returns a Llama instance.
+
+    Args:
+        model_path:   Path to a .gguf file downloaded from HuggingFace.
+        n_gpu_layers: Layers to offload to GPU. -1 offloads all (recommended for H100).
+        n_ctx:        Context window size in tokens.
+    """
+    from llama_cpp import Llama
+
+    return Llama(
+        model_path=str(model_path),
+        n_gpu_layers=n_gpu_layers,
+        n_ctx=n_ctx,
+        verbose=False,
+    )
+
+
+def generate_summary_gguf(llm, transcript: str, max_new_tokens: int = 256) -> str:
+    """Run greedy chat completion on a GGUF model and return the summary string."""
+    messages = format_chat(transcript)
+    response = llm.create_chat_completion(
+        messages=messages,
+        max_tokens=max_new_tokens,
+        temperature=0.0,
+    )
+    return response["choices"][0]["message"]["content"].strip()
