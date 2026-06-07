@@ -1,7 +1,12 @@
+import json
 import pathlib
+import urllib.request
 
 import click
-from datasets import load_dataset
+from datasets import load_dataset  # used by _download_meetingbank
+
+_AMISUM_BASE = "https://cs.taltech.ee/staff/heharm/AMIsum/"
+_AMISUM_FILES = {"train": "train.json", "validation": "val.json", "test": "test.json"}
 
 
 @click.command()
@@ -32,31 +37,29 @@ def download_data(dataset_name: str, output_dir: pathlib.Path) -> None:
 
 
 def _download_ami(output_dir: pathlib.Path) -> None:
-    # Meeting-level summaries (TalTechNLP/AMIsum)
-    for split in ("train", "validation", "test"):
-        click.echo(f"[ami/sum] downloading split={split} ...")
-        ds = load_dataset("TalTechNLP/AMIsum", split=split)
-        dest = output_dir / "ami" / "sum" / split
-        ds.save_to_disk(str(dest))
-        click.echo(f"  -> {len(ds)} rows saved to {dest}")
-
-    # Utterance-level transcripts (edinburghcstr/ami, IHM + SDM)
-    for config in ("ihm", "sdm"):
-        for split in ("train", "validation", "test"):
-            click.echo(f"[ami/{config}] downloading split={split} ...")
-            try:
-                ds = load_dataset("edinburghcstr/ami", config, split=split)
-                dest = output_dir / "ami" / config / split
-                ds.save_to_disk(str(dest))
-                click.echo(f"  -> {len(ds)} rows saved to {dest}")
-            except Exception as exc:
-                click.echo(f"  [warn] skipped: {exc}")
+    # AMIsum — plain JSON from TalTech server (no audio, text-only)
+    for split, filename in _AMISUM_FILES.items():
+        dest_dir = output_dir / "ami"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest = dest_dir / filename
+        if dest.exists():
+            click.echo(f"[ami] {split} already downloaded, skipping.")
+            continue
+        click.echo(f"[ami] downloading split={split} ...")
+        url = _AMISUM_BASE + filename
+        with urllib.request.urlopen(url, timeout=30) as r:
+            data = json.load(r)
+        dest.write_text(json.dumps(data))
+        click.echo(f"  -> {len(data['id'])} meetings saved to {dest}")
 
 
 def _download_meetingbank(output_dir: pathlib.Path) -> None:
     for split in ("train", "validation", "test"):
+        dest = output_dir / "meetingbank" / split
+        if dest.exists() and any(dest.iterdir()):
+            click.echo(f"[meetingbank] {split} already downloaded, skipping.")
+            continue
         click.echo(f"[meetingbank] downloading split={split} ...")
         ds = load_dataset("huuuyeah/MeetingBank", split=split)
-        dest = output_dir / "meetingbank" / split
         ds.save_to_disk(str(dest))
         click.echo(f"  -> {len(ds)} rows saved to {dest}")
