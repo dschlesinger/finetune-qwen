@@ -4,9 +4,10 @@ Dataset loaders for AMI Meeting Corpus and MeetingBank.
 Returns a normalized list[Meeting] regardless of source. Both benchmark scripts
 and the fine-tuning pipeline import from here.
 
-HuggingFace dataset IDs (verify with `ds.features` if fields change):
-  AMI:         edinburghcbid/ami   configs: "ihm" (manual) / "sdm" (distant-mic ASR)
-  MeetingBank: huuuyeah/MeetingBank
+HuggingFace dataset IDs:
+  AMI summaries:   TalTechNLP/AMIsum          field: id, transcript, summary
+  AMI utterances:  edinburghcstr/ami           configs: ihm / sdm, field: meeting_id, text
+  MeetingBank:     huuuyeah/MeetingBank        field: meeting_id, transcript, summary
 """
 
 from __future__ import annotations
@@ -40,47 +41,44 @@ def load_ami(split: str = "test") -> list[Meeting]:
     """
     Load AMI Meeting Corpus.
 
-    IHM (individual headset mic) = high-quality near-manual transcripts.
-    SDM (single distant mic)     = noisier, closer to real-world ASR output.
+    TalTechNLP/AMIsum provides meeting-level summaries and the official split.
+    edinburghcstr/ami IHM/SDM configs provide utterance-level transcripts that
+    are aggregated per meeting_id to reconstruct full-session text.
 
-    Both configs share the same meeting IDs, so we zip them by meeting_id to
-    produce one Meeting per session with both transcript variants.
+    IHM (individual headset mic) = cleaner near-manual transcripts → transcript_manual.
+    SDM (single distant mic)     = noisier ASR-like transcripts    → transcript_asr.
+    Falls back to the AMIsum transcript field if the config is unavailable.
     """
-    ds_ihm = load_dataset(
-        "edinburghcbid/ami", "ihm", split=split, trust_remote_code=True
-    )
-    ds_sdm = load_dataset(
-        "edinburghcbid/ami", "sdm", split=split, trust_remote_code=True
-    )
+    ami_sum = load_dataset("TalTechNLP/AMIsum", split=split)
 
-    sdm_by_id: dict[str, str] = {
-        row["meeting_id"]: _ami_concat(row) for row in ds_sdm
-    }
+    ihm_by_id: dict[str, list[str]] = {}
+    sdm_by_id: dict[str, list[str]] = {}
+    try:
+        for row in load_dataset("edinburghcstr/ami", "ihm", split=split):
+            ihm_by_id.setdefault(row["meeting_id"], []).append(row["text"])
+        for row in load_dataset("edinburghcstr/ami", "sdm", split=split):
+            sdm_by_id.setdefault(row["meeting_id"], []).append(row["text"])
+    except Exception:
+        pass
+
+    ihm_text = {mid: " ".join(utts) for mid, utts in ihm_by_id.items()}
+    sdm_text = {mid: " ".join(utts) for mid, utts in sdm_by_id.items()}
 
     meetings: list[Meeting] = []
-    for row in ds_ihm:
-        mid = row["meeting_id"]
+    for row in ami_sum:
+        mid = row["id"]
+        fallback = row["transcript"]
         meetings.append(
             Meeting(
                 id=mid,
                 source="ami",
                 split=split,
-                transcript_asr=sdm_by_id.get(mid, ""),
-                transcript_manual=_ami_concat(row),
-                summary=row["abstractive_summary"],
+                transcript_asr=sdm_text.get(mid, fallback),
+                transcript_manual=ihm_text.get(mid, fallback),
+                summary=row["summary"],
             )
         )
     return meetings
-
-
-def _ami_concat(row: dict) -> str:
-    """Flatten AMI word-level transcript list to a plain string."""
-    words = row.get("words", [])
-    if isinstance(words, list):
-        return " ".join(
-            w["word"] if isinstance(w, dict) else str(w) for w in words
-        )
-    return str(words)
 
 
 # ---------------------------------------------------------------------------
@@ -93,9 +91,7 @@ def load_meetingbank(split: str = "test") -> list[Meeting]:
 
     MeetingBank has no manual transcripts, so transcript_manual is None.
     """
-    ds = load_dataset(
-        "huuuyeah/MeetingBank", split=split, trust_remote_code=True
-    )
+    ds = load_dataset("huuuyeah/MeetingBank", split=split)
 
     meetings: list[Meeting] = []
     for row in ds:

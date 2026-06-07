@@ -32,25 +32,31 @@ def download_data(dataset_name: str, output_dir: pathlib.Path) -> None:
 
 
 def _download_ami(output_dir: pathlib.Path) -> None:
+    # Meeting-level summaries (TalTechNLP/AMIsum)
+    for split in ("train", "validation", "test"):
+        click.echo(f"[ami/sum] downloading split={split} ...")
+        ds = load_dataset("TalTechNLP/AMIsum", split=split)
+        dest = output_dir / "ami" / "sum" / split
+        ds.save_to_disk(str(dest))
+        click.echo(f"  -> {len(ds)} rows saved to {dest}")
+
+    # Utterance-level transcripts (edinburghcstr/ami, IHM + SDM)
     for config in ("ihm", "sdm"):
         for split in ("train", "validation", "test"):
             click.echo(f"[ami/{config}] downloading split={split} ...")
-            ds = load_dataset(
-                "edinburghcbid/ami", config,
-                split=split, trust_remote_code=True,
-            )
-            dest = output_dir / "ami" / config / split
-            ds.save_to_disk(str(dest))
-            click.echo(f"  -> {len(ds)} rows saved to {dest}")
+            try:
+                ds = load_dataset("edinburghcstr/ami", config, split=split)
+                dest = output_dir / "ami" / config / split
+                ds.save_to_disk(str(dest))
+                click.echo(f"  -> {len(ds)} rows saved to {dest}")
+            except Exception as exc:
+                click.echo(f"  [warn] skipped: {exc}")
 
 
 def _download_meetingbank(output_dir: pathlib.Path) -> None:
     for split in ("train", "validation", "test"):
         click.echo(f"[meetingbank] downloading split={split} ...")
-        ds = load_dataset(
-            "huuuyeah/MeetingBank",
-            split=split, trust_remote_code=True,
-        )
+        ds = load_dataset("huuuyeah/MeetingBank", split=split)
         dest = output_dir / "meetingbank" / split
         ds.save_to_disk(str(dest))
         click.echo(f"  -> {len(ds)} rows saved to {dest}")
