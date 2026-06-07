@@ -93,7 +93,7 @@ def load_meetingbank(split: str = "test") -> list[Meeting]:
     for row in ds:
         meetings.append(
             Meeting(
-                id=row["meeting_id"],
+                id=row["uid"],
                 source="meetingbank",
                 split=split,
                 transcript_asr=row["transcript"],
