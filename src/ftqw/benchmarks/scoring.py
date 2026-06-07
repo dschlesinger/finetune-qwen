@@ -8,6 +8,13 @@ a dict of metric_name -> float scores. All models are loaded lazily on first cal
 from __future__ import annotations
 
 import functools
+import pathlib
+import sys
+
+# UniEval is a script-style repo with no package setup; add it to the path.
+_vendor = pathlib.Path(__file__).parents[4] / "vendor" / "UniEval"
+if _vendor.exists() and str(_vendor) not in sys.path:
+    sys.path.insert(0, str(_vendor))
 
 
 # ---------------------------------------------------------------------------

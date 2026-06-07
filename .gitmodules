@@ -1,0 +1,6 @@
+[submodule "vendor/AlignScore"]
+	path = vendor/AlignScore
+	url = https://github.com/yuh-zha/AlignScore.git
+[submodule "vendor/UniEval"]
+	path = vendor/UniEval
+	url = https://github.com/maszhongming/UniEval.git
